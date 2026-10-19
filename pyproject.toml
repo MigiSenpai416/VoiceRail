@@ -120,6 +120,8 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Training tests write ~1 GB of checkpoints; keep temp dirs only on failure.
+tmp_path_retention_policy = "failed"
 markers = [
   "assets: needs downloaded base models (rmvpe, hubert, pretrains)",
   "slow: long running test",

@@ -19,7 +19,14 @@ def with_assets(isolated_home):
     source = assets_home()
     if not source or not (source / "assets" / "rmvpe.pt").exists():
         pytest.skip("VOICERAIL_TEST_ASSETS not configured")
-    shutil.copytree(source / "assets", isolated_home / "assets", symlinks=True)
+    isolated_home.mkdir(parents=True, exist_ok=True)
+    try:
+        # Link instead of copying ~600 MB of base models on every run.
+        (isolated_home / "assets").symlink_to(
+            (source / "assets").resolve(), target_is_directory=True
+        )
+    except OSError:
+        shutil.copytree(source / "assets", isolated_home / "assets", symlinks=True)
     return isolated_home
 
 
