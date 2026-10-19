@@ -1,0 +1,15 @@
+# Everything VoiceRail downloads or creates at runtime
+/data/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Local tool state
+/.claude/

@@ -1,0 +1,126 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "voicerail"
+version = "0.1.0"
+description = "Train RVC voice models from raw recordings and convert songs or speech to any voice, from a friendly web UI."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "numpy>=2.0",
+  "scipy>=1.13",
+  "soundfile>=0.12.1",
+  "soxr>=0.5",
+  "librosa>=0.10.2",
+  # librosa>=1.0 no longer pulls audioread, but audio-separator imports it.
+  "audioread>=3.0",
+  "pyloudnorm>=0.1.1",
+  "faiss-cpu>=1.8",
+  "audio-separator[cpu]>=0.40",
+  "imageio-ffmpeg>=0.5",
+  "pedalboard>=0.9.12",
+  "gradio>=6.0,<7",
+  "requests>=2.31",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Pick exactly one of the torch variants below. torchvision is listed so it
+# comes from the same index as torch (audio-separator needs it, and a
+# mismatched PyPI build fails to import).
+# cuda: NVIDIA driver >= 580 (all GPUs incl. RTX 50xx); cuda-legacy: >= 525.
+cuda = ["torch>=2.6 ; sys_platform != 'darwin'", "torchvision ; sys_platform != 'darwin'"]
+cuda-legacy = [
+  "torch>=2.6 ; sys_platform != 'darwin'",
+  "torchvision ; sys_platform != 'darwin'",
+]
+rocm = [
+  "torch>=2.6 ; sys_platform == 'linux'",
+  "torchvision ; sys_platform == 'linux'",
+  "triton-rocm ; sys_platform == 'linux'",
+]
+cpu = ["torch>=2.6", "torchvision"]
+
+[project.scripts]
+voicerail = "voicerail.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voicerail"]
+
+[tool.uv]
+environments = [
+  "sys_platform == 'win32'",
+  "sys_platform == 'linux'",
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+conflicts = [
+  [{ extra = "cuda" }, { extra = "cuda-legacy" }, { extra = "rocm" }, { extra = "cpu" }],
+]
+# diffq is only used by audio-separator's Demucs models, which VoiceRail does
+# not use, and it has no wheels for modern Python (it would need a compiler).
+override-dependencies = [
+  "diffq ; sys_platform == 'never'",
+  "diffq-fixed ; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu130", extra = "cuda" },
+  { index = "pytorch-cu126", extra = "cuda-legacy" },
+  { index = "pytorch-rocm", extra = "rocm" },
+  { index = "pytorch-cpu", extra = "cpu" },
+]
+torchvision = [
+  { index = "pytorch-cu130", extra = "cuda" },
+  { index = "pytorch-cu126", extra = "cuda-legacy" },
+  { index = "pytorch-rocm", extra = "rocm" },
+  { index = "pytorch-cpu", extra = "cpu" },
+]
+triton-rocm = [{ index = "pytorch-rocm", extra = "rocm" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.1"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+# gr.Progress() as a default argument is how Gradio injects progress bars.
+"src/voicerail/web/*.py" = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "assets: needs downloaded base models (rmvpe, hubert, pretrains)",
+  "slow: long running test",
+]
