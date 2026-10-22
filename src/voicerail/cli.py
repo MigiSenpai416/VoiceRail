@@ -29,9 +29,9 @@ def _progress(fraction: float, message: str) -> None:
 
 
 def cmd_web(args) -> None:
-    from .web.app import launch
+    from .web.server import launch
 
-    launch(args.host, args.port, args.share, not args.no_browser)
+    launch(args.host, args.port, not args.no_browser)
 
 
 def cmd_convert(args) -> None:
@@ -149,12 +149,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--port",
         type=int,
         default=int(os.environ.get("VOICERAIL_PORT") or DEFAULT_PORT),
-    )
-    web.add_argument(
-        "--share",
-        action="store_true",
-        default=_env_flag("VOICERAIL_SHARE"),
-        help="create a public link",
     )
     web.add_argument(
         "--no-browser", action="store_true", default=_env_flag("VOICERAIL_NO_BROWSER")

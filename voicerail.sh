@@ -3,7 +3,7 @@
 # First run installs everything (uv, Python 3.12, PyTorch, ...), later runs
 # just start the app. Arguments are passed to `voicerail`, e.g.
 #   ./voicerail.sh                 start the web UI
-#   ./voicerail.sh web --share     web UI with a public link
+#   ./voicerail.sh web --host 0.0.0.0   web UI reachable from other machines
 #   ./voicerail.sh convert song.mp3 -m MyVoice
 # Set VOICERAIL_TORCH=cuda|cuda-legacy|rocm|cpu to override GPU detection.
 set -euo pipefail

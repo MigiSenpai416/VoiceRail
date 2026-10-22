@@ -11,5 +11,8 @@ dist/
 .pytest_cache/
 .ruff_cache/
 
+# Frontend toolchain (the built app in src/voicerail/web/static is committed)
+/frontend/node_modules/
+
 # Local tool state
 /.claude/

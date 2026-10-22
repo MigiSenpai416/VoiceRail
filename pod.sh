@@ -4,8 +4,8 @@
 # Run it from a Jupyter terminal or a notebook cell; the first run installs
 # everything, later runs start in seconds. Arguments are passed to
 # `voicerail`, the default is the web UI reachable from outside the pod:
-#   ./pod.sh                          web UI on 0.0.0.0:8080 + public share link
-#   VOICERAIL_SHARE=0 ./pod.sh        no share link (use the pod's port proxy)
+#   ./pod.sh                          web UI on 0.0.0.0:8080 (open it through the
+#                                     pod's port proxy or an SSH tunnel)
 #   ./pod.sh download                 install and fetch the base models only
 #   ./pod.sh train MyVoice --data /workspace/recordings
 # Everything slow to recreate (Python, packages, models, training sessions,
@@ -27,7 +27,6 @@ export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$volume/.cache/uv-python}
 export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 export VOICERAIL_HOST="${VOICERAIL_HOST:-0.0.0.0}"
 export VOICERAIL_PORT="${VOICERAIL_PORT:-8080}"
-export VOICERAIL_SHARE="${VOICERAIL_SHARE:-1}"
 export VOICERAIL_NO_BROWSER=1
 mkdir -p "$VOICERAIL_HOME" "$UV_CACHE_DIR" "$UV_PYTHON_INSTALL_DIR"
 
@@ -35,6 +34,8 @@ echo "VoiceRail: data in $VOICERAIL_HOME"
 if [ $# -eq 0 ]; then
   if [ -n "${RUNPOD_POD_ID:-}" ]; then
     echo "RunPod port proxy: https://${RUNPOD_POD_ID}-${VOICERAIL_PORT}.proxy.runpod.net (expose HTTP port ${VOICERAIL_PORT} in the pod template)"
+  else
+    echo "Open http://<pod address>:${VOICERAIL_PORT} through the pod's port mapping, or tunnel it: ssh -L ${VOICERAIL_PORT}:localhost:${VOICERAIL_PORT} <pod>"
   fi
   set -- web
 fi

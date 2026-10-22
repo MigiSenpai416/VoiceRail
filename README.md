@@ -122,8 +122,8 @@ the CPU otherwise (with a warning in the log and a badge in the UI). Set
 
 The web server can also be configured through the environment, which is
 handy on headless machines: `VOICERAIL_HOST` (default `127.0.0.1`; use
-`0.0.0.0` to accept connections from other machines), `VOICERAIL_PORT`,
-`VOICERAIL_SHARE=1` (public link) and `VOICERAIL_NO_BROWSER=1`.
+`0.0.0.0` to accept connections from other machines), `VOICERAIL_PORT`
+(default `8080`) and `VOICERAIL_NO_BROWSER=1`.
 
 ## Remote GPU pods (RunPod, Vast.ai, Lambda, ...)
 
@@ -133,7 +133,7 @@ no Docker image of your own is needed), then either:
 - **Notebook:** upload [`VoiceRail.ipynb`](VoiceRail.ipynb) to the pod's
   Jupyter, set `REPO_URL` in the first cell and run the cells. It clones the
   repository, installs everything, downloads the base models and starts the
-  web UI with a public link.
+  web UI, then prints the address to open it at.
 - **Terminal:** in a Jupyter terminal:
 
   ```bash
@@ -144,9 +144,10 @@ no Docker image of your own is needed), then either:
 `pod.sh` keeps Python, packages, base models, training sessions and outputs
 on the persistent volume (`/workspace` when present, `VOICERAIL_VOLUME` to
 choose another; plan on 20 GB, the Linux CUDA PyTorch stack alone is about
-8 GB), binds the UI to `0.0.0.0:8080` and prints a public
-`*.gradio.live` link. Set `VOICERAIL_SHARE=0` to use the pod's own port proxy
-instead (expose HTTP port 8080 in the pod template). Any `voicerail` command
+8 GB) and binds the UI to `0.0.0.0:8080`. Open it through the pod's port
+proxy (RunPod: expose HTTP port 8080 in the template; the script prints the
+proxy URL) or an SSH tunnel: `ssh -L 8080:localhost:8080 <pod>` and then
+<http://localhost:8080>. Any `voicerail` command
 works through it, e.g. `./pod.sh train MyVoice --data /workspace/recordings`
 or `./pod.sh download` to prepare a pod ahead of time. Training keeps running
 in its own process if the notebook or the browser tab is closed.
@@ -223,6 +224,24 @@ uv run --no-sync ruff check src tests && uv run --no-sync ruff format src tests
 On Windows set the variable first: `$env:VOICERAIL_TEST_ASSETS = "data"`
 (PowerShell). The end-to-end test trains a tiny model and converts a clip
 through the real pipeline, on the GPU when one is available.
+
+### Web app
+
+The UI is a React app in `frontend/` served by the FastAPI server in
+`src/voicerail/web/server.py`. The built bundle is committed to
+`src/voicerail/web/static/`, so users and pods never need Node. To work on
+the UI you do:
+
+```bash
+cd frontend
+npm install
+npm run dev        # hot-reloading dev server on http://localhost:5173,
+                   # proxies /api to a running `voicerail web`
+npm run build      # type-checks and rebuilds the committed bundle
+```
+
+The API is plain JSON under `/api/` (see `server.py`); long operations
+return a task whose progress streams from `/api/tasks/<id>/events`.
 
 ## License
 

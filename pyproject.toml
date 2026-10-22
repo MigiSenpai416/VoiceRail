@@ -22,7 +22,9 @@ dependencies = [
   "audio-separator[cpu]>=0.40",
   "imageio-ffmpeg>=0.5",
   "pedalboard>=0.9.12",
-  "gradio>=6.0,<7",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
   "requests>=2.31",
   "tqdm>=4.66",
 ]
