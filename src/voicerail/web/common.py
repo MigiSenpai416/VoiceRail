@@ -29,6 +29,19 @@ def refreshed_models(current: str | None = None) -> gr.Dropdown:
     return gr.Dropdown(choices=choices, value=value)
 
 
+def heading(title: str) -> gr.Markdown:
+    return gr.Markdown(title, elem_classes="vr-heading")
+
+
+def reset_button(label: str, components: list) -> gr.Button:
+    """A button that puts every component in ``components`` back to its
+    initial value."""
+    defaults = [c.value for c in components]
+    button = gr.Button(label, scale=1, min_width=120)
+    button.click(lambda: defaults, None, components, show_progress="hidden")
+    return button
+
+
 def describe_pitch(hz: float | None) -> str:
     if not hz:
         return "unknown"

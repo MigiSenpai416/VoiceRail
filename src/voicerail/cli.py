@@ -8,6 +8,8 @@ import os
 import sys
 from pathlib import Path
 
+DEFAULT_PORT = 8080
+
 PRESETS = {
     "songs": dict(isolate_vocals=True, remove_backing_vocals=True, dereverb=True),
     "clean": dict(isolate_vocals=False, remove_backing_vocals=False, dereverb=False),
@@ -45,6 +47,8 @@ def cmd_convert(args) -> None:
             index_rate=args.index_rate,
             protect=args.protect,
             rms_mix_rate=args.volume_envelope,
+            autotune_strength=args.autotune,
+            pitch_threshold=args.pitch_threshold,
         ),
         auto_pitch=args.auto_pitch,
         dereverb=not args.no_dereverb,
@@ -90,6 +94,10 @@ def cmd_train(args) -> None:
             epochs=args.epochs,
             batch_size=args.batch_size,
             precision=args.precision,
+            learning_rate=args.learning_rate,
+            patience=args.patience,
+            early_stopping=not args.no_early_stopping,
+            gradient_checkpointing=args.low_vram,
         ),
         stages,
         fresh=args.fresh,
@@ -138,7 +146,9 @@ def build_parser() -> argparse.ArgumentParser:
     web = sub.add_parser("web", help="start the web UI (default)")
     web.add_argument("--host", default=os.environ.get("VOICERAIL_HOST", "127.0.0.1"))
     web.add_argument(
-        "--port", type=int, default=int(os.environ.get("VOICERAIL_PORT") or 0) or None
+        "--port",
+        type=int,
+        default=int(os.environ.get("VOICERAIL_PORT") or DEFAULT_PORT),
     )
     web.add_argument(
         "--share",
@@ -160,6 +170,10 @@ def build_parser() -> argparse.ArgumentParser:
     conv.add_argument("--index-rate", type=float, default=0.5)
     conv.add_argument("--protect", type=float, default=0.33)
     conv.add_argument("--volume-envelope", type=float, default=0.25)
+    conv.add_argument("--autotune", type=float, default=0.0, help="0-1, 0 = off")
+    conv.add_argument(
+        "--pitch-threshold", type=float, default=0.03, help="voiced/unvoiced cut-off"
+    )
     conv.add_argument("--no-dereverb", action="store_true")
     conv.add_argument(
         "--backing", choices=["keep", "convert", "remove"], default="keep"
@@ -178,6 +192,16 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--batch-size", type=int, default=0, help="0 = automatic")
     train.add_argument(
         "--precision", choices=["auto", "fp32", "bf16", "fp16"], default="auto"
+    )
+    train.add_argument("--learning-rate", type=float, default=1e-4)
+    train.add_argument(
+        "--patience", type=int, default=40, help="epochs without improvement"
+    )
+    train.add_argument(
+        "--no-early-stopping", action="store_true", help="always run every epoch"
+    )
+    train.add_argument(
+        "--low-vram", action="store_true", help="gradient checkpointing, slower"
     )
     train.add_argument("--fresh", action="store_true", help="discard old checkpoints")
     train.add_argument("--prepare-only", action="store_true")

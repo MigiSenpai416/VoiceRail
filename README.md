@@ -95,7 +95,7 @@ from a terminal with any `voicerail` command, e.g. `voicerail.bat models`.
 
 The first run installs [uv](https://docs.astral.sh/uv/), Python 3.12 and all
 dependencies (a few GB, takes a while), then opens the web UI at
-<http://127.0.0.1:7860>. Later runs start in seconds.
+<http://127.0.0.1:8080>. Later runs start in seconds.
 
 The launcher picks the right PyTorch build from your GPU driver:
 
@@ -144,9 +144,9 @@ no Docker image of your own is needed), then either:
 `pod.sh` keeps Python, packages, base models, training sessions and outputs
 on the persistent volume (`/workspace` when present, `VOICERAIL_VOLUME` to
 choose another; plan on 20 GB, the Linux CUDA PyTorch stack alone is about
-8 GB), binds the UI to `0.0.0.0:7860` and prints a public
+8 GB), binds the UI to `0.0.0.0:8080` and prints a public
 `*.gradio.live` link. Set `VOICERAIL_SHARE=0` to use the pod's own port proxy
-instead (expose HTTP port 7860 in the pod template). Any `voicerail` command
+instead (expose HTTP port 8080 in the pod template). Any `voicerail` command
 works through it, e.g. `./pod.sh train MyVoice --data /workspace/recordings`
 or `./pod.sh download` to prepare a pod ahead of time. Training keeps running
 in its own process if the notebook or the browser tab is closed.
@@ -166,6 +166,10 @@ in its own process if the notebook or the browser tab is closed.
 - Leave epochs and batch size on automatic and keep *Stop when it stops
   improving* on. Listen to the preview clips: when they sound like the target
   voice, you can stop and press *Save current model now*.
+- The defaults are the best general settings. *Training settings* (learning
+  rate and decay, loss weights, precision, patience, low-VRAM mode) and
+  *Dataset slicing* (segment length, silence threshold, loudness) are there
+  for experiments; every control says what raising or lowering it does.
 
 ## Conversion tips
 
@@ -177,6 +181,8 @@ in its own process if the notebook or the browser tab is closed.
 - **Consonant protection:** lower it (0.2–0.3) if breaths or "s" sounds
   become metallic.
 - Keep *Remove reverb* on for songs; dry vocals convert far better.
+- *Conversion settings* also has the volume envelope, autotune and the pitch
+  detection threshold (raise it if breathy passages produce stray notes).
 
 ## Command line
 

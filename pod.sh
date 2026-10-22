@@ -4,7 +4,7 @@
 # Run it from a Jupyter terminal or a notebook cell; the first run installs
 # everything, later runs start in seconds. Arguments are passed to
 # `voicerail`, the default is the web UI reachable from outside the pod:
-#   ./pod.sh                          web UI on 0.0.0.0:7860 + public share link
+#   ./pod.sh                          web UI on 0.0.0.0:8080 + public share link
 #   VOICERAIL_SHARE=0 ./pod.sh        no share link (use the pod's port proxy)
 #   ./pod.sh download                 install and fetch the base models only
 #   ./pod.sh train MyVoice --data /workspace/recordings
@@ -26,7 +26,7 @@ export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$volume/.cache/uv-python}
 # of hard-linking so uv does not warn on every install.
 export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 export VOICERAIL_HOST="${VOICERAIL_HOST:-0.0.0.0}"
-export VOICERAIL_PORT="${VOICERAIL_PORT:-7860}"
+export VOICERAIL_PORT="${VOICERAIL_PORT:-8080}"
 export VOICERAIL_SHARE="${VOICERAIL_SHARE:-1}"
 export VOICERAIL_NO_BROWSER=1
 mkdir -p "$VOICERAIL_HOME" "$UV_CACHE_DIR" "$UV_PYTHON_INSTALL_DIR"

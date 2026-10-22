@@ -24,7 +24,7 @@ from ..audio.separation import (
 from ..train.config import SAMPLE_RATES, TrainConfig
 from ..train.dataset import CleaningOptions, SegmentOptions, load_report
 from ..train.job import STAGES, job_file, write_job
-from .common import friendly_errors
+from .common import friendly_errors, reset_button
 
 log = logging.getLogger(__name__)
 
@@ -41,14 +41,17 @@ PRESETS = {
 }
 FULL_PIPELINE = ["prepare", "features", "train", "index", "publish"]
 UPLOAD_TYPES = sorted(AUDIO_EXTENSIONS)
+DEFAULT_TRAIN = TrainConfig()
+DEFAULT_SEGMENT = SegmentOptions()
 
 
 def _status_html(name: str | None) -> str:
     if not name:
         return (
-            "<div class='vr-card'><h3>No training session selected</h3>"
+            "<div class='vr-card'><h3>Nothing trained yet</h3>"
             "<div class='vr-muted'>Name your voice, add recordings and press "
-            "<b>Start training</b>.</div></div>"
+            "<b>Start training</b>. Progress shows here and keeps running if "
+            "you close this page.</div></div>"
         )
     st = jobs.status(name)
     if st.state == "idle":
@@ -97,7 +100,7 @@ def _status_html(name: str | None) -> str:
     done = ""
     if st.state == "finished" and st.result and st.result.get("model_dir"):
         done = (
-            "<div style='margin-top:8px'>✅ The voice model is ready in the "
+            "<div style='margin-top:8px'>✅ The voice is ready in the "
             "<b>Convert</b> tab.</div>"
         )
     return (
@@ -169,7 +172,7 @@ def _source_summary(name: str | None) -> str:
     src = jobs.experiment_dir(name) / "sources"
     files = [p for p in src.glob("*") if p.is_file()] if src.is_dir() else []
     if not files:
-        return "*No recordings added to this session yet.*"
+        return "*No recordings stored in this session yet.*"
     size = sum(p.stat().st_size for p in files) / 1024**2
     return f"{len(files)} recording(s) stored for this session ({size:.0f} MB)."
 
@@ -177,156 +180,312 @@ def _source_summary(name: str | None) -> str:
 def build() -> dict:
     sessions = jobs.experiments()
     current = jobs.latest_experiment()
-    with gr.Row(equal_height=False):
-        with gr.Column(scale=5):
-            with gr.Group():
+    with gr.Column(elem_classes="vr-page"):
+        name = gr.Textbox(
+            label="Voice name",
+            placeholder="e.g. MyVoice",
+            value=current or "",
+            info="Also the name of the training session. To continue an earlier "
+            "one, pick it under Options › Session.",
+        )
+        files = gr.File(
+            label="Recordings (mp3, wav, flac, m4a, video, ...)",
+            file_count="multiple",
+            file_types=UPLOAD_TYPES,
+            type="filepath",
+        )
+        preset = gr.Radio(
+            list(PRESETS),
+            value=next(iter(PRESETS)),
+            label="What kind of recordings?",
+            info="Picks the clean-up steps: songs get the music, backing vocals "
+            "and reverb removed; clean voice skips all of that; noisy voice also "
+            "gets denoised. Fine-tune under Options › Clean-up.",
+        )
+
+        with gr.Accordion("Options", open=False):
+            with gr.Accordion("Session", open=False):
                 with gr.Row():
                     session = gr.Dropdown(
                         sessions,
                         value=current,
                         label="Training session",
-                        info="Pick an existing session to monitor or resume it.",
+                        info="Pick an earlier session to monitor or resume it.",
                         allow_custom_value=False,
                         scale=4,
                     )
-                    refresh_sessions = gr.Button("↻", scale=0, min_width=48)
-                name = gr.Textbox(
-                    label="Voice name",
-                    placeholder="e.g. MyVoice",
-                    value=current or "",
-                )
-                files = gr.File(
-                    label="Recordings (mp3, wav, flac, m4a, ...)",
-                    file_count="multiple",
-                    file_types=UPLOAD_TYPES,
-                    type="filepath",
-                )
+                    refresh_sessions = gr.Button("↻", scale=0, min_width=44)
                 folder = gr.Textbox(
-                    label="…or a folder on this computer",
+                    label="Folder of recordings on this computer",
                     placeholder="C:\\Users\\me\\voice-recordings",
+                    info="Used in addition to uploaded files.",
                 )
-                sources_md = gr.Markdown(_source_summary(current))
-
-            preset = gr.Radio(
-                list(PRESETS),
-                value=next(iter(PRESETS)),
-                label="What kind of recordings are these?",
-                info="Chooses the clean-up steps below.",
-            )
-            with gr.Accordion("Clean-up steps", open=False):
-                isolate = gr.Checkbox(value=True, label="Remove music / background")
-                vocal_model = gr.Dropdown(
-                    [m.label for m in VOCAL_MODELS],
-                    value=VOCAL_MODELS[0].label,
-                    label="Vocal separation model",
-                )
-                backing = gr.Checkbox(
-                    value=True, label="Remove backing vocals / harmonies"
-                )
-                lead_model = gr.Dropdown(
-                    [m.label for m in LEAD_MODELS],
-                    value=LEAD_MODELS[0].label,
-                    label="Lead vocal model",
-                )
-                dereverb = gr.Checkbox(value=True, label="Remove reverb / echo")
-                dereverb_model = gr.Dropdown(
-                    [m.label for m in DEREVERB_MODELS],
-                    value=DEREVERB_MODELS[0].label,
-                    label="De-reverb model",
-                )
-                denoise = gr.Checkbox(value=False, label="Remove noise")
-                denoise_model = gr.Dropdown(
-                    [m.label for m in DENOISE_MODELS],
-                    value=DENOISE_MODELS[0].label,
-                    label="Denoise model",
-                )
-
-            with gr.Accordion("Training settings", open=False):
-                sample_rate = gr.Radio(
-                    [str(sr) for sr in SAMPLE_RATES],
-                    value="40000",
-                    label="Sample rate",
-                    info="40k is the best-supported choice; 48k for hi-fi singing.",
-                )
-                pretrained = gr.Dropdown(
-                    list(PRETRAINED_SETS),
-                    value=DEFAULT_PRETRAINED,
-                    label="Base (pretrained) model",
+                sources_md = gr.Markdown(
+                    _source_summary(current), elem_classes="vr-hint"
                 )
                 with gr.Row():
+                    fresh = gr.Checkbox(
+                        value=False,
+                        label="Start over",
+                        info="Discard this session's previous checkpoints.",
+                    )
+                    prepare_btn = gr.Button("Prepare dataset only", size="sm")
+                    publish_btn = gr.Button("Save current model now", size="sm")
+            with gr.Accordion("Clean-up", open=False):
+                with gr.Row():
+                    isolate = gr.Checkbox(value=True, label="Remove music / background")
+                    vocal_model = gr.Dropdown(
+                        [m.label for m in VOCAL_MODELS],
+                        value=VOCAL_MODELS[0].label,
+                        label="Vocal separation model",
+                    )
+                with gr.Row():
+                    backing = gr.Checkbox(
+                        value=True, label="Remove backing vocals / harmonies"
+                    )
+                    lead_model = gr.Dropdown(
+                        [m.label for m in LEAD_MODELS],
+                        value=LEAD_MODELS[0].label,
+                        label="Lead vocal model",
+                    )
+                with gr.Row():
+                    dereverb = gr.Checkbox(value=True, label="Remove reverb / echo")
+                    dereverb_model = gr.Dropdown(
+                        [m.label for m in DEREVERB_MODELS],
+                        value=DEREVERB_MODELS[0].label,
+                        label="De-reverb model",
+                    )
+                with gr.Row():
+                    denoise = gr.Checkbox(value=False, label="Remove noise")
+                    denoise_model = gr.Dropdown(
+                        [m.label for m in DENOISE_MODELS],
+                        value=DENOISE_MODELS[0].label,
+                        label="Denoise model",
+                    )
+            with gr.Accordion("Training", open=False):
+                with gr.Row():
+                    sample_rate = gr.Radio(
+                        [str(sr) for sr in SAMPLE_RATES],
+                        value=str(DEFAULT_TRAIN.sample_rate),
+                        label="Sample rate",
+                        info="40k is the best-supported choice; 48k for hi-fi "
+                        "singing (more VRAM), 32k for very small GPUs.",
+                    )
+                    pretrained = gr.Dropdown(
+                        list(PRETRAINED_SETS),
+                        value=DEFAULT_PRETRAINED,
+                        label="Base (pretrained) model",
+                        info="The voice is fine-tuned from this. TITAN is cleaner "
+                        "but a larger download.",
+                    )
+                with gr.Row():
                     epochs = gr.Slider(
-                        0, 1000, value=0, step=10, label="Epochs (0 = automatic)"
+                        0,
+                        1000,
+                        value=DEFAULT_TRAIN.epochs,
+                        step=10,
+                        label="Epochs (0 = automatic)",
+                        info="More = closer fit of the voice until it overfits "
+                        "(early stopping keeps the best epoch); fewer = faster, "
+                        "rougher. Automatic aims at ~7000 steps.",
                     )
                     batch = gr.Slider(
-                        0, 32, value=0, step=1, label="Batch size (0 = automatic)"
+                        0,
+                        32,
+                        value=DEFAULT_TRAIN.batch_size,
+                        step=1,
+                        label="Batch size (0 = automatic)",
+                        info="Larger = faster, smoother training but more VRAM; "
+                        "smaller = fits small GPUs, noisier updates. Automatic "
+                        "picks from the GPU's memory.",
+                    )
+                with gr.Row():
+                    learning_rate = gr.Number(
+                        value=DEFAULT_TRAIN.learning_rate,
+                        minimum=1e-5,
+                        maximum=1e-3,
+                        label="Learning rate",
+                        info="Higher = learns faster but can get unstable or "
+                        "overfit; lower = slower, safer. 1e-4 is RVC's standard.",
+                    )
+                    lr_decay = gr.Number(
+                        value=DEFAULT_TRAIN.lr_decay,
+                        minimum=0.99,
+                        maximum=1.0,
+                        label="Learning rate decay per epoch",
+                        info="Closer to 1 = keeps learning at full speed longer; "
+                        "lower = settles down sooner.",
                     )
                 with gr.Row():
                     early = gr.Checkbox(
-                        value=True,
+                        value=DEFAULT_TRAIN.early_stopping,
                         label="Stop when it stops improving",
-                        info="Uses held-out clips to detect the best epoch.",
+                        info="Scores held-out clips through the real conversion "
+                        "path and keeps the best epoch.",
                     )
                     patience = gr.Slider(
-                        10, 200, value=40, step=5, label="Patience (epochs)"
+                        10,
+                        200,
+                        value=DEFAULT_TRAIN.patience,
+                        step=5,
+                        label="Patience (epochs)",
+                        info="Epochs without improvement before stopping. Higher "
+                        "= rides out plateaus, longer runs; lower = stops sooner.",
                     )
                 with gr.Row():
                     precision = gr.Dropdown(
                         ["auto", "fp32", "bf16", "fp16"],
-                        value="auto",
+                        value=DEFAULT_TRAIN.precision,
                         label="Precision",
-                        info="auto = bf16 on RTX 30xx and newer, else fp32",
+                        info="auto = bf16 on RTX 30xx and newer, else fp32. fp32 "
+                        "= most stable, slower; fp16 = fast on older GPUs, can "
+                        "overflow.",
                     )
                     save_every = gr.Slider(
-                        1, 50, value=10, step=1, label="Save every N epochs"
+                        1,
+                        50,
+                        value=DEFAULT_TRAIN.save_every,
+                        step=1,
+                        label="Save every N epochs",
+                        info="Lower = more checkpoints and preview clips (more "
+                        "disk, slightly slower); higher = fewer.",
                     )
-                keep_snapshots = gr.Checkbox(
-                    value=False, label="Also keep a model file at every save"
-                )
-                low_vram = gr.Checkbox(
-                    value=False,
-                    label="Low VRAM mode (gradient checkpointing, slower)",
-                )
-                fresh = gr.Checkbox(
-                    value=False,
-                    label="Start over (discard this session's previous training)",
-                )
+                with gr.Row():
+                    c_mel = gr.Slider(
+                        1,
+                        100,
+                        value=DEFAULT_TRAIN.c_mel,
+                        step=1,
+                        label="Spectrogram loss weight",
+                        info="Higher = closer, cleaner timbre, can sound flatter; "
+                        "lower = more freedom and more artifacts. 45 is standard.",
+                    )
+                    c_kl = gr.Slider(
+                        0,
+                        5,
+                        value=DEFAULT_TRAIN.c_kl,
+                        step=0.1,
+                        label="KL loss weight",
+                        info="Higher = smoother, more generic voice; lower = "
+                        "sharper detail but less stable. 1 is standard.",
+                    )
+                with gr.Row():
+                    keep_snapshots = gr.Checkbox(
+                        value=DEFAULT_TRAIN.keep_snapshots,
+                        label="Keep a model file at every save",
+                    )
+                    low_vram = gr.Checkbox(
+                        value=DEFAULT_TRAIN.gradient_checkpointing,
+                        label="Low VRAM mode",
+                        info="Gradient checkpointing: fits about twice the batch "
+                        "in the same memory, ~30% slower.",
+                    )
+            with gr.Accordion("Dataset slicing", open=False):
+                with gr.Row():
+                    max_seconds = gr.Slider(
+                        2,
+                        10,
+                        value=DEFAULT_SEGMENT.max_seconds,
+                        step=0.1,
+                        label="Longest segment (s)",
+                        info="Longer = more context per step but more VRAM per "
+                        "item; shorter = more, smaller segments.",
+                    )
+                    min_seconds = gr.Slider(
+                        0.3,
+                        3,
+                        value=DEFAULT_SEGMENT.min_seconds,
+                        step=0.1,
+                        label="Shortest segment (s)",
+                        info="Shorter clips are dropped. Higher = cleaner but "
+                        "less data; lower = keeps short words and breaths.",
+                    )
+                with gr.Row():
+                    silence_db = gr.Slider(
+                        -60,
+                        -20,
+                        value=DEFAULT_SEGMENT.silence_db,
+                        step=1,
+                        label="Silence threshold (dB)",
+                        info="Level treated as silence when slicing. Higher = "
+                        "cuts more aggressively and drops quiet tails; lower = "
+                        "keeps breaths and room tone.",
+                    )
+                    target_lufs = gr.Slider(
+                        -30,
+                        -12,
+                        value=DEFAULT_SEGMENT.target_lufs,
+                        step=1,
+                        label="Target loudness (LUFS)",
+                        info="Every clip is normalised to this. Higher = louder "
+                        "with less headroom; lower = quieter, safer.",
+                    )
 
-            with gr.Row():
-                prepare_btn = gr.Button("Prepare dataset only")
-                start_btn = gr.Button(
-                    "Start / resume training",
-                    variant="primary",
-                    elem_classes="vr-big-button",
-                )
-            with gr.Row():
-                stop_btn = gr.Button("Stop", variant="stop")
-                publish_btn = gr.Button("Save current model now")
+        options = [
+            preset,
+            isolate,
+            vocal_model,
+            backing,
+            lead_model,
+            dereverb,
+            dereverb_model,
+            denoise,
+            denoise_model,
+            sample_rate,
+            pretrained,
+            epochs,
+            batch,
+            learning_rate,
+            lr_decay,
+            early,
+            patience,
+            precision,
+            save_every,
+            c_mel,
+            c_kl,
+            keep_snapshots,
+            low_vram,
+            fresh,
+            max_seconds,
+            min_seconds,
+            silence_db,
+            target_lufs,
+        ]
+        with gr.Row():
+            reset_button("Reset options", options)
+            start_btn = gr.Button(
+                "Start / resume training",
+                variant="primary",
+                scale=4,
+                elem_classes="vr-big-button",
+            )
+            stop_btn = gr.Button("Stop", variant="stop", scale=1, min_width=100)
 
-        with gr.Column(scale=5):
-            status = gr.HTML(_status_html(current))
+        status = gr.HTML(_status_html(current))
+        with gr.Row():
+            preview = gr.Audio(
+                label="Latest preview of the voice",
+                type="filepath",
+                interactive=False,
+                buttons=["download"],
+            )
+            reference = gr.Audio(
+                label="Original clip",
+                type="filepath",
+                interactive=False,
+                buttons=["download"],
+            )
+        with gr.Accordion("Details", open=False):
             plot = gr.LinePlot(
                 _loss_frame(current),
                 x="epoch",
                 y="loss",
                 color="series",
                 title="Mel loss (lower is better)",
-                height=260,
+                height=240,
             )
-            with gr.Row():
-                preview = gr.Audio(
-                    label="Latest preview",
-                    type="filepath",
-                    interactive=False,
-                    buttons=["download"],
-                )
-                reference = gr.Audio(
-                    label="Original",
-                    type="filepath",
-                    interactive=False,
-                    buttons=["download"],
-                )
             cleaned = gr.Audio(
-                label="Cleaned training clip",
+                label="A cleaned training clip",
                 type="filepath",
                 interactive=False,
                 buttons=["download"],
@@ -334,8 +493,8 @@ def build() -> dict:
             report = gr.Markdown(_report_md(current))
             log_box = gr.Textbox(
                 label="Log",
-                lines=14,
-                max_lines=14,
+                lines=12,
+                max_lines=12,
                 autoscroll=True,
                 elem_classes="vr-log",
                 interactive=False,
@@ -416,6 +575,7 @@ def build() -> dict:
             voice_name,
             uploads,
             folder_path,
+            _preset,
             iso,
             voc_m,
             back,
@@ -428,13 +588,21 @@ def build() -> dict:
             pre,
             ep,
             bs,
+            lr,
+            decay,
             es,
             pat,
             prec,
             save_n,
+            mel_w,
+            kl_w,
             snaps,
             lowvram,
             restart,
+            max_s,
+            min_s,
+            sil_db,
+            lufs,
         ) = args
         jobs.ensure_idle()
         voice_name = (voice_name or "").strip()
@@ -468,6 +636,14 @@ def build() -> dict:
             denoise=den,
             denoise_model=den_m,
         )
+        segmenting = SegmentOptions(
+            target_lufs=float(lufs),
+            silence_db=float(sil_db),
+            max_seconds=float(max_s),
+            min_seconds=float(min_s),
+        )
+        if segmenting.min_seconds >= segmenting.max_seconds:
+            raise gr.Error("The shortest segment must be shorter than the longest.")
         train = TrainConfig(
             sample_rate=int(sr),
             epochs=int(ep),
@@ -478,6 +654,10 @@ def build() -> dict:
             keep_snapshots=bool(snaps),
             early_stopping=bool(es),
             patience=int(pat),
+            learning_rate=float(lr),
+            lr_decay=float(decay),
+            c_mel=float(mel_w),
+            c_kl=float(kl_w),
             gradient_checkpointing=bool(lowvram),
         )
         write_job(
@@ -485,7 +665,7 @@ def build() -> dict:
             safe,
             sources,
             cleaning,
-            SegmentOptions(),
+            segmenting,
             train,
             stages,
             fresh=bool(restart) and "train" in stages,
@@ -498,30 +678,7 @@ def build() -> dict:
             *refresh_view(safe)[: len(view_outputs)],
         ]
 
-    settings_inputs = [
-        name,
-        files,
-        folder,
-        isolate,
-        vocal_model,
-        backing,
-        lead_model,
-        dereverb,
-        dereverb_model,
-        denoise,
-        denoise_model,
-        sample_rate,
-        pretrained,
-        epochs,
-        batch,
-        early,
-        patience,
-        precision,
-        save_every,
-        keep_snapshots,
-        low_vram,
-        fresh,
-    ]
+    settings_inputs = [name, files, folder, *options]
     launch_outputs = [session, files, *view_outputs]
 
     @friendly_errors
