@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-DEFAULT_PORT = 8080
+DEFAULT_PORT = 9999
 
 PRESETS = {
     "songs": dict(isolate_vocals=True, remove_backing_vocals=True, dereverb=True),

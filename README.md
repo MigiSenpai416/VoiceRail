@@ -95,7 +95,7 @@ from a terminal with any `voicerail` command, e.g. `voicerail.bat models`.
 
 The first run installs [uv](https://docs.astral.sh/uv/), Python 3.12 and all
 dependencies (a few GB, takes a while), then opens the web UI at
-<http://127.0.0.1:8080>. Later runs start in seconds.
+<http://127.0.0.1:9999>. Later runs start in seconds.
 
 The launcher picks the right PyTorch build from your GPU driver:
 
@@ -123,14 +123,15 @@ the CPU otherwise (with a warning in the log and a badge in the UI). Set
 The web server can also be configured through the environment, which is
 handy on headless machines: `VOICERAIL_HOST` (default `127.0.0.1`; use
 `0.0.0.0` to accept connections from other machines), `VOICERAIL_PORT`
-(default `8080`) and `VOICERAIL_NO_BROWSER=1`.
+(default `9999`, chosen because 8080 is often taken on pods) and
+`VOICERAIL_NO_BROWSER=1`.
 
 ## Remote GPU pods (RunPod, Vast.ai, Lambda, ...)
 
 Rent a pod with an NVIDIA GPU and Jupyter (any PyTorch/CUDA template works,
 no Docker image of your own is needed). In a Jupyter terminal, one line does
 everything (clone or update the repository on the persistent volume, install
-uv, Python and PyTorch, start the web UI on port 8080):
+uv, Python and PyTorch, start the web UI on port 9999):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MigiSenpai416/VoiceRail/main/install.sh | bash
@@ -150,10 +151,10 @@ starts VoiceRail directly.
 `pod.sh` keeps Python, packages, base models, training sessions and outputs
 on the persistent volume (`/workspace` when present, `VOICERAIL_VOLUME` to
 choose another; plan on 20 GB, the Linux CUDA PyTorch stack alone is about
-8 GB) and binds the UI to `0.0.0.0:8080`. Open it through the pod's port
-proxy (RunPod: expose HTTP port 8080 in the template; the script prints the
-proxy URL) or an SSH tunnel: `ssh -L 8080:localhost:8080 <pod>` and then
-<http://localhost:8080>. Any `voicerail` command
+8 GB) and binds the UI to `0.0.0.0:9999`. Open it through the pod's port
+proxy (RunPod: expose HTTP port 9999 in the template; the script prints the
+proxy URL) or an SSH tunnel: `ssh -L 9999:localhost:9999 <pod>` and then
+<http://localhost:9999>. Any `voicerail` command
 works through it, e.g. `./pod.sh train MyVoice --data /workspace/recordings`
 or `./pod.sh download` to prepare a pod ahead of time. Training keeps running
 in its own process if the notebook or the browser tab is closed.

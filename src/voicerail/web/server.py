@@ -596,7 +596,7 @@ def frontend(path: str) -> FileResponse:
 
 
 def launch(
-    host: str = "127.0.0.1", port: int = 8080, open_browser: bool = True
+    host: str = "127.0.0.1", port: int = 9999, open_browser: bool = True
 ) -> None:
     import uvicorn
 

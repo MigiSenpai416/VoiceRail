@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/MigiSenpai416/VoiceRail/main/install.sh | bash
 #
 # Clones (or updates) the repository on the persistent volume, installs uv,
-# Python, PyTorch and the app, then starts the web UI on 0.0.0.0:8080.
+# Python, PyTorch and the app, then starts the web UI on 0.0.0.0:9999.
 # Anything after `bash -s --` is passed to pod.sh / voicerail, e.g.
 #   ... | bash -s -- download                  install and fetch base models only
 #   ... | bash -s -- train MyVoice --data /workspace/recordings
