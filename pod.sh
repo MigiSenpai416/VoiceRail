@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # VoiceRail on a rented Linux GPU pod (RunPod, Vast.ai, Lambda, Paperspace, ...).
-# Linux only; on Windows use voicerail.bat.
+# Linux only; on Windows use voicerail.bat. On a fresh pod without the
+# repository, use the one-liner in install.sh instead:
+#   curl -fsSL https://raw.githubusercontent.com/MigiSenpai416/VoiceRail/main/install.sh | bash
 # Run it from a Jupyter terminal or a notebook cell; the first run installs
 # everything, later runs start in seconds. Arguments are passed to
 # `voicerail`, the default is the web UI reachable from outside the pod:

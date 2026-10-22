@@ -128,18 +128,24 @@ handy on headless machines: `VOICERAIL_HOST` (default `127.0.0.1`; use
 ## Remote GPU pods (RunPod, Vast.ai, Lambda, ...)
 
 Rent a pod with an NVIDIA GPU and Jupyter (any PyTorch/CUDA template works,
-no Docker image of your own is needed), then either:
+no Docker image of your own is needed). In a Jupyter terminal, one line does
+everything (clone or update the repository on the persistent volume, install
+uv, Python and PyTorch, start the web UI on port 8080):
 
-- **Notebook:** upload [`VoiceRail.ipynb`](VoiceRail.ipynb) to the pod's
-  Jupyter, set `REPO_URL` in the first cell and run the cells. It clones the
-  repository, installs everything, downloads the base models and starts the
-  web UI, then prints the address to open it at.
-- **Terminal:** in a Jupyter terminal:
+```bash
+curl -fsSL https://raw.githubusercontent.com/MigiSenpai416/VoiceRail/main/install.sh | bash
+```
 
-  ```bash
-  git clone <your repo URL> /workspace/VoiceRail && cd /workspace/VoiceRail
-  ./pod.sh
-  ```
+Append `-s -- <command>` to run something else, e.g. `| bash -s -- download`
+to only install and fetch the base models, or `| bash -s -- train MyVoice
+--data /workspace/recordings`. `VOICERAIL_REPO` and `VOICERAIL_BRANCH`
+select a fork or branch. The same line works as a pod template's start
+command.
+
+Alternatively upload [`VoiceRail.ipynb`](VoiceRail.ipynb) to the pod's
+Jupyter and run the cells; it does the same from a notebook and prints the
+address to open. Once the repository is on the pod, `./pod.sh` in its folder
+starts VoiceRail directly.
 
 `pod.sh` keeps Python, packages, base models, training sessions and outputs
 on the persistent volume (`/workspace` when present, `VOICERAIL_VOLUME` to
