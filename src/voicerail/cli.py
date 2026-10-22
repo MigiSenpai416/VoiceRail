@@ -17,6 +17,10 @@ PRESETS = {
 }
 
 
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _progress(fraction: float, message: str) -> None:
     sys.stdout.write(f"\r[{fraction * 100:5.1f}%] {message[:70]:<70}")
     sys.stdout.flush()
@@ -129,11 +133,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="voicerail", description=__doc__)
     sub = parser.add_subparsers(dest="command")
 
+    # Defaults can come from the environment so headless machines (rented GPU
+    # pods, notebooks) can be configured without editing a command line.
     web = sub.add_parser("web", help="start the web UI (default)")
-    web.add_argument("--host", default="127.0.0.1")
-    web.add_argument("--port", type=int, default=None)
-    web.add_argument("--share", action="store_true", help="create a public link")
-    web.add_argument("--no-browser", action="store_true")
+    web.add_argument("--host", default=os.environ.get("VOICERAIL_HOST", "127.0.0.1"))
+    web.add_argument(
+        "--port", type=int, default=int(os.environ.get("VOICERAIL_PORT") or 0) or None
+    )
+    web.add_argument(
+        "--share",
+        action="store_true",
+        default=_env_flag("VOICERAIL_SHARE"),
+        help="create a public link",
+    )
+    web.add_argument(
+        "--no-browser", action="store_true", default=_env_flag("VOICERAIL_NO_BROWSER")
+    )
     web.set_defaults(func=cmd_web)
 
     conv = sub.add_parser("convert", help="convert a song or recording")

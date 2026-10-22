@@ -2,24 +2,50 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from functools import cache
 
 import torch
 
+log = logging.getLogger(__name__)
+
 
 @cache
 def default_device() -> torch.device:
-    """The best available device, overridable with ``VOICERAIL_DEVICE``."""
+    """The best available device, overridable with ``VOICERAIL_DEVICE``.
+
+    GPU first, CPU as the fallback: a forced or detected accelerator that
+    cannot actually run a kernel (driver too old, broken install) is skipped
+    with a warning instead of failing later in the middle of a job.
+    """
     forced = os.environ.get("VOICERAIL_DEVICE", "").strip()
     if forced:
-        return torch.device(forced)
-    if torch.cuda.is_available():
+        device = torch.device(forced)
+        if _usable(device):
+            return device
+        log.warning("VOICERAIL_DEVICE=%s is not usable; using the CPU.", forced)
+        return torch.device("cpu")
+    if torch.cuda.is_available() and _usable(torch.device("cuda:0")):
         return torch.device("cuda:0")
     if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
         return torch.device("mps")
+    log.warning("No usable GPU found: running on the CPU (slow).")
     return torch.device("cpu")
+
+
+def _usable(device: torch.device) -> bool:
+    if device.type == "cpu":
+        return True
+    try:
+        if device.type == "cuda" and (device.index or 0) >= torch.cuda.device_count():
+            return False
+        torch.ones(1, device=device).sum().item()
+        return True
+    except Exception as error:
+        log.warning("Device %s failed its self-test: %s", device, error)
+        return False
 
 
 def bf16_supported(device: torch.device) -> bool:

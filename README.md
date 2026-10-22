@@ -79,13 +79,19 @@ links (Hugging Face etc.), rename, delete and export models.
 
 ## Install and run
 
-**Windows:** double-click `voicerail.bat`.
+Each platform has its own launcher; none of them needs the other's tools.
+
+**Windows (development machine):** double-click `voicerail.bat`, or run it
+from a terminal with any `voicerail` command, e.g. `voicerail.bat models`.
 
 **Linux / macOS:**
 
 ```bash
 ./voicerail.sh
 ```
+
+**Linux GPU pods:** `./pod.sh` or the notebook, see
+[Remote GPU pods](#remote-gpu-pods-runpod-vastai-lambda-) below.
 
 The first run installs [uv](https://docs.astral.sh/uv/), Python 3.12 and all
 dependencies (a few GB, takes a while), then opens the web UI at
@@ -109,6 +115,41 @@ uv run --no-sync voicerail
 
 All data (models, training sessions, outputs, caches) goes to `./data`. Set
 `VOICERAIL_HOME` to use another folder.
+
+VoiceRail always uses the GPU when PyTorch can run on it and falls back to
+the CPU otherwise (with a warning in the log and a badge in the UI). Set
+`VOICERAIL_DEVICE=cpu` (or `cuda:1`) to force a device.
+
+The web server can also be configured through the environment, which is
+handy on headless machines: `VOICERAIL_HOST` (default `127.0.0.1`; use
+`0.0.0.0` to accept connections from other machines), `VOICERAIL_PORT`,
+`VOICERAIL_SHARE=1` (public link) and `VOICERAIL_NO_BROWSER=1`.
+
+## Remote GPU pods (RunPod, Vast.ai, Lambda, ...)
+
+Rent a pod with an NVIDIA GPU and Jupyter (any PyTorch/CUDA template works,
+no Docker image of your own is needed), then either:
+
+- **Notebook:** upload [`VoiceRail.ipynb`](VoiceRail.ipynb) to the pod's
+  Jupyter, set `REPO_URL` in the first cell and run the cells. It clones the
+  repository, installs everything, downloads the base models and starts the
+  web UI with a public link.
+- **Terminal:** in a Jupyter terminal:
+
+  ```bash
+  git clone <your repo URL> /workspace/VoiceRail && cd /workspace/VoiceRail
+  ./pod.sh
+  ```
+
+`pod.sh` keeps Python, packages, base models, training sessions and outputs
+on the persistent volume (`/workspace` when present, `VOICERAIL_VOLUME` to
+choose another; plan on 20 GB, the Linux CUDA PyTorch stack alone is about
+8 GB), binds the UI to `0.0.0.0:7860` and prints a public
+`*.gradio.live` link. Set `VOICERAIL_SHARE=0` to use the pod's own port proxy
+instead (expose HTTP port 7860 in the pod template). Any `voicerail` command
+works through it, e.g. `./pod.sh train MyVoice --data /workspace/recordings`
+or `./pod.sh download` to prepare a pod ahead of time. Training keeps running
+in its own process if the notebook or the browser tab is closed.
 
 ## Training tips
 
@@ -167,11 +208,15 @@ activated.
 ## Development
 
 ```bash
-uv sync --extra cpu --group dev
+uv sync --extra cuda-legacy --group dev     # or cuda / rocm / cpu, see above
 uv run --no-sync pytest                     # unit tests
 VOICERAIL_TEST_ASSETS=data uv run --no-sync pytest -m assets   # end-to-end
 uv run --no-sync ruff check src tests && uv run --no-sync ruff format src tests
 ```
+
+On Windows set the variable first: `$env:VOICERAIL_TEST_ASSETS = "data"`
+(PowerShell). The end-to-end test trains a tiny model and converts a clip
+through the real pipeline, on the GPU when one is available.
 
 ## License
 
